@@ -14,9 +14,14 @@ class Agent:
         self.n_games = 0
         self.epsilon = 0 # randomness
         self.gamma = 0.9 # discount rate
-        self.memory = deque(maxlen=cfg.MAX_MEMORY) # popleft()
+        self.MAX_MEMORY = cfg.MAX_MEMORY
+        self.BATCH_SIZE = cfg.BATCH_SIZE
+        self.LR = cfg.LR
+
+        self.memory = deque(maxlen=self.MAX_MEMORY) # popleft()
         self.model = Linear_QNet(11, 3)
-        self.trainer = QTrainer(self.model, lr=cfg.LR, gamma=self.gamma)
+        self.trainer = QTrainer(self.model, lr=self.LR, gamma=self.gamma)
+
         self.scores = []
         self.mean_scores = []
         self.total_score = 0
@@ -37,9 +42,9 @@ class Agent:
             "mean_scores" : self.mean_scores,
             "total_score" : self.total_score,
             "highest_score": self.highest_score,
-            "MAX_MEMORY" : cfg.MAX_MEMORY,
-            "BATCH_SIZE" : cfg.BATCH_SIZE,
-            "LR" : cfg.LR
+            "MAX_MEMORY" : self.MAX_MEMORY,
+            "BATCH_SIZE" : self.BATCH_SIZE,
+            "LR" : self.LR
         }
 
         filepath = os.path.join(model_folder_path, file_name)
@@ -70,6 +75,9 @@ class Agent:
         self.mean_scores = checkpoint.get('mean_scores', [])
         self.total_score = checkpoint.get("total_score", 0)
         self.highest_score = checkpoint.get("highest_score", 0)
+        self.MAX_MEMORY = checkpoint.get("MAX_MEMORY", cfg.MAX_MEMORY)
+        self.BATCH_SIZE = checkpoint.get("BATCH_SIZE", cfg.BATCH_SIZE)
+        self.LR = checkpoint.get("LR", cfg.LR)
         print("Checkpoint loaded:", file_name)
 
         # filepath = os.path.join(model_folder_path, "mem_" + file_name)
@@ -78,7 +86,7 @@ class Agent:
             (np.array(s), a, r, np.array(ns), d ) 
             for (s, a, r, ns, d) in mem_checkpoint
         ]
-        self.memory = deque(mem_checkpoint, maxlen=cfg.MAX_MEMORY)
+        self.memory = deque(mem_checkpoint, maxlen=self.MAX_MEMORY)
         print("Memory loaded:", filepath)
 
     def get_state(self, game):
@@ -131,8 +139,8 @@ class Agent:
         self.memory.append((state, action, reward, next_state, done)) # popleft if MAX_MEMORY is reached
 
     def train_long_memory(self):
-        if len(self.memory) > cfg.BATCH_SIZE:
-            mini_sample = random.sample(self.memory, cfg.BATCH_SIZE) # list of tuples
+        if len(self.memory) > self.BATCH_SIZE:
+            mini_sample = random.sample(self.memory, self.BATCH_SIZE) # list of tuples
         else:
             mini_sample = self.memory
 
