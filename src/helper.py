@@ -6,27 +6,43 @@ from IPython import display
 
 plt.ion()
 
-def plot(scores, mean_scores, model_folder_path):
+def plot(*, scores=[], mean_scores=[], loss=[], model_folder_path, filename="plot.png"):
+    # extracting the file extension
+    # providing valid file extension when not given
+    ext = filename.rsplit('.', 1)[-1]
+    if ext not in ['png', 'jpg', 'jpeg']:
+        filename += ".png"
+    
     display.clear_output(wait=True)
     display.display(plt.gcf())
     plt.clf()
+    if scores:
+        plt.plot(range(1, len(scores)+1), scores, label="Score")
+        plt.text(len(scores)-1, scores[-1], str(scores[-1]))
 
-    plt.plot(range(1, len(scores)+1), scores, label="Score")
-    plt.plot(range(1, len(mean_scores)+1), mean_scores, label="Mean Score")
+    if mean_scores:
+        plt.plot(range(1, len(mean_scores)+1), mean_scores, label="Mean Score")
+        plt.text(len(mean_scores)-1, mean_scores[-1], str(mean_scores[-1]))
 
-    plt.title('Training...')
+    if loss:
+        plt.plot(range(1, len(loss)+1), loss, label="Loss")
+
     plt.xlabel('Number of Games')
-    plt.ylabel('Score')
+
+    if scores or mean_scores:
+        plt.ylabel('Score')
+        plt.title('Training...')
+    else:
+        plt.ylabel("Loss")
+        plt.title('Training Loss...')
 
     plt.ylim(ymin=0)
     plt.xlim(xmin=0)
-    plt.text(len(scores)-1, scores[-1], str(scores[-1]))
-    plt.text(len(mean_scores)-1, mean_scores[-1], str(mean_scores[-1]))
 
     plt.legend()
     plt.show(block=False)
     plt.pause(.1)
-    plt.savefig(f"{model_folder_path}/score.png")
+    plt.savefig(f"{model_folder_path}/{filename}")
 
 
 def get_model_suffix(folder="./models"):

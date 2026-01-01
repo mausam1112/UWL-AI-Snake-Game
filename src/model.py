@@ -33,7 +33,9 @@ class QTrainer:
         self.optimizer = optim.Adam(model.parameters(), lr=self.lr)
         self.criterion = nn.MSELoss()
 
-    def train_step(self, state, action, reward, next_state, done):
+        self.track_loss = []
+
+    def train_step(self, state, action, reward, next_state, done, store_loss=False):
         state = torch.tensor(state, dtype=torch.float)
         next_state = torch.tensor(next_state, dtype=torch.float)
         action = torch.tensor(action, dtype=torch.long)
@@ -73,6 +75,10 @@ class QTrainer:
         # preds[argmax(action)] = Q_new
         self.optimizer.zero_grad()
         loss = self.criterion(target, pred)
+
+        # store loss in case of long memory train
+        if store_loss:
+            self.track_loss.append(loss.item())
         loss.backward()
 
         self.optimizer.step()

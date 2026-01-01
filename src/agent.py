@@ -44,7 +44,8 @@ class Agent:
             "highest_score": self.highest_score,
             "MAX_MEMORY" : self.MAX_MEMORY,
             "BATCH_SIZE" : self.BATCH_SIZE,
-            "LR" : self.LR
+            "LR" : self.LR,
+            'track_loss' : self.trainer.track_loss
         }
 
         filepath = os.path.join(model_folder_path, file_name)
@@ -78,6 +79,7 @@ class Agent:
         self.MAX_MEMORY = checkpoint.get("MAX_MEMORY", cfg.MAX_MEMORY)
         self.BATCH_SIZE = checkpoint.get("BATCH_SIZE", cfg.BATCH_SIZE)
         self.LR = checkpoint.get("LR", cfg.LR)
+        self.trainer.track_loss = checkpoint.get("track_loss", [])
         print("Checkpoint loaded:", file_name)
 
         # filepath = os.path.join(model_folder_path, "mem_" + file_name)
@@ -145,7 +147,7 @@ class Agent:
             mini_sample = self.memory
 
         states, actions, rewards, next_states, dones = zip(*mini_sample)
-        self.trainer.train_step(states, actions, rewards, next_states, dones)
+        self.trainer.train_step(states, actions, rewards, next_states, dones, store_loss=True)
         #for state, action, reward, nexrt_state, done in mini_sample:
         #    self.trainer.train_step(state, action, reward, next_state, done)
 
