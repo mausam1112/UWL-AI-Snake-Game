@@ -74,19 +74,25 @@ def train():
             agent.scores.append(score)
             agent.total_score += score
             agent.mean_scores.append(agent.total_score / agent.n_games)
-            print(f"{len(agent.scores)}")
-            print(f"{len(agent.mean_scores)}")
+            
             plot(
                 scores=agent.scores, 
                 mean_scores=agent.mean_scores, 
-                model_folder_path=model_folder_path, 
-                filename="score.png"
-            )
-            plot(
                 loss=agent.trainer.track_loss, 
                 model_folder_path=model_folder_path, 
-                filename="loss.png"
+                filename="metrics.png"
             )
+            # plot(
+            #     scores=agent.scores, 
+            #     mean_scores=agent.mean_scores, 
+            #     model_folder_path=model_folder_path, 
+            #     filename="score.png"
+            # )
+            # plot(
+            #     loss=agent.trainer.track_loss, 
+            #     model_folder_path=model_folder_path, 
+            #     filename="loss.png"
+            # )
             
 
 
