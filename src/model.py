@@ -2,6 +2,7 @@ import os
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import torch.nn.functional as F
 
 
 class Linear_QNet(nn.Module):
@@ -9,13 +10,23 @@ class Linear_QNet(nn.Module):
         super().__init__()
         self.linear1 = nn.Linear(input_size, 128)
         self.linear2 = nn.Linear(128, 256)
-        self.linear3 = nn.Linear(256, output_size)
+        self.linear3 = nn.Linear(input_size, 256)
+        self.linear4 = nn.Linear(256, output_size)
+        # self.dropout = nn.Dropout(0.3)
         # self.act_relu = nn.ReLU()
 
     def forward(self, x):
-        x = nn.ReLU()(self.linear1(x))
-        x = nn.ReLU()(self.linear2(x))
-        x = self.linear3(x)
+        x_cp = x
+        x = F.leaky_relu(self.linear1(x))
+        x = F.leaky_relu(self.linear2(x))
+        x_cp = F.leaky_relu(self.linear3(x_cp))
+
+        if x.shape != x_cp.shape:
+            raise ValueError(f"Shape mismatch: {x.shape} vs {x_cp.shape}")
+        # x = self.dropout(F.relu(self.linear3(x)))
+        x = x + x_cp
+
+        x = self.linear4(x)
         return x
 
     def save(self, model_folder_path, file_name='model.pt'):
