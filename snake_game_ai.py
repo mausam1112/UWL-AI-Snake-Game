@@ -8,7 +8,7 @@ def play():
     agent = Agent()
 
     # Load trained model
-    agent.model.load_state_dict(torch.load("models/model-2/model.pth"))
+    agent.model.load_state_dict(torch.load("models/model-13/model.pth"))
     agent.model.eval()
 
     while True:
