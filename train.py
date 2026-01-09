@@ -12,9 +12,15 @@ parser.add_argument(
     action="store_true",
     help="Resume training from checkpoint"
 )
+parser.add_argument(
+    "--baseline",
+    action="store_true",
+    help="Play with heuristic"
+)
 args = parser.parse_args()
 
 RESUME = args.resume
+BASELINE = args.baseline
 
 
 def train():
@@ -39,27 +45,32 @@ def train():
         os.makedirs(model_folder_path)
 
     while True:
-        # get old state
-        state_old = agent.get_state(game)
-
         # get move
-        final_move = agent.get_action(state_old)
+        if BASELINE:
+            final_move = agent.get_heuristic_action(game)
+        else:
+            # get old state
+            state_old = agent.get_state(game)
+            final_move = agent.get_action(state_old)
 
         # perform move and get new state
         reward, done, score = game.play_step(final_move)
-        state_new = agent.get_state(game)
 
-        # train short memory
-        agent.train_short_memory(state_old, final_move, reward, state_new, done)
+        if not BASELINE:
+            state_new = agent.get_state(game)
 
-        # remember
-        agent.remember(state_old, final_move, reward, state_new, done)
+            # train short memory
+            agent.train_short_memory(state_old, final_move, reward, state_new, done)
+
+            # remember
+            agent.remember(state_old, final_move, reward, state_new, done)
 
         if done:
             # train long memory, plot result
             game.reset()
             agent.n_games += 1
-            agent.train_long_memory()
+            if not BASELINE:
+                agent.train_long_memory()
 
             print('Game', agent.n_games, 'Score', score, 'Highest Score:', agent.highest_score)
 
@@ -68,8 +79,9 @@ def train():
                 agent.highest_score = score
 
                 # saving best model
-                agent.model.save(model_folder_path)
-                agent.save_checkpoint(model_folder_path)
+                if not BASELINE:
+                    agent.model.save(model_folder_path)
+                    agent.save_checkpoint(model_folder_path)
 
             agent.scores.append(score)
             agent.total_score += score
