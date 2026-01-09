@@ -19,7 +19,7 @@ class Agent:
         self.LR = cfg.LR
 
         self.memory = deque(maxlen=self.MAX_MEMORY) # popleft()
-        self.model = Linear_QNet(11, 3)
+        self.model = Linear_QNet(14, 3)
         self.trainer = QTrainer(self.model, lr=self.LR, gamma=self.gamma)
 
         self.scores = []
@@ -91,51 +91,223 @@ class Agent:
         self.memory = deque(mem_checkpoint, maxlen=self.MAX_MEMORY)
         print("Memory loaded:", filepath)
 
+    def _distance_until_collision(self, game, start_point, direction):
+        """Returns normalized distance until collision in given direction."""
+        distance = 0
+        point = Point(start_point.x, start_point.y)
+        while not game.is_collision(point):
+            point = Point(point.x + direction.x, point.y + direction.y)
+            distance += 1
+        # Normalize by grid width (number of cells)
+        return distance / (game.w // cfg.BLOCK_SIZE)
+
+    def _fast_flood_fill(self, grid, start, max_limit=200):
+        """Stack-based flood-fill to count reachable free spaces."""
+        rows, cols = grid.shape
+        r, c = start
+
+        # Clip start coordinates to valid grid
+        r = np.clip(r, 0, rows - 1)
+        c = np.clip(c, 0, cols - 1)
+
+        r, c = int(r), int(c)
+
+        if grid[r, c] == 1:
+            return 0
+
+        visited = np.zeros_like(grid, dtype=bool)
+        stack = [(r, c)]
+        visited[r, c] = True
+        free_count = 0
+
+        while stack:
+            r, c = stack.pop()
+            free_count += 1
+            if free_count >= max_limit:
+                return max_limit
+
+            for nr, nc in [(r-1,c),(r+1,c),(r,c-1),(r,c+1)]:
+                # Clip neighbors to grid
+                if 0 <= nr < rows and 0 <= nc < cols:
+                    if not visited[nr, nc] and grid[nr, nc] == 0:
+                        visited[nr, nc] = True
+                        stack.append((nr, nc))
+        return free_count
+
+    # ---------------- GET STATE ----------------
     def get_state(self, game):
         head = game.snake[0]
-        point_l = Point(head.x - 20, head.y)
-        point_r = Point(head.x + 20, head.y)
-        point_u = Point(head.x, head.y - 20)
-        point_d = Point(head.x, head.y + 20)
-        
+
+        # One-step neighbors
+        point_l = Point(head.x - cfg.BLOCK_SIZE, head.y)
+        point_r = Point(head.x + cfg.BLOCK_SIZE, head.y)
+        point_u = Point(head.x, head.y - cfg.BLOCK_SIZE)
+        point_d = Point(head.x, head.y + cfg.BLOCK_SIZE)
+
+        # Directions
         dir_l = game.move == Move.LEFT
         dir_r = game.move == Move.RIGHT
         dir_u = game.move == Move.UP
         dir_d = game.move == Move.DOWN
 
+        # # Step vectors
+        # step_l = Point(-cfg.BLOCK_SIZE, 0)
+        # step_r = Point(cfg.BLOCK_SIZE, 0)
+        # step_u = Point(0, -cfg.BLOCK_SIZE)
+        # step_d = Point(0, cfg.BLOCK_SIZE)
+
+        # DISTANCES & FREE SPACE
+        # Build occupancy grid (0 = free, 1 = body/wall)
+        grid_h = game.h // cfg.BLOCK_SIZE
+        grid_w = game.w // cfg.BLOCK_SIZE
+        grid = np.zeros((grid_h, grid_w), dtype=np.uint8)
+
+        for p in game.snake:
+            row = int(min(p.y // cfg.BLOCK_SIZE, grid_h - 1))
+            col = int(min(p.x // cfg.BLOCK_SIZE, grid_w - 1))
+            grid[row, col] = 1
+
+        # Ensure food not counted as obstacle
+        food_row = int(min(game.food.y // cfg.BLOCK_SIZE, grid_h - 1))
+        food_col = int(min(game.food.x // cfg.BLOCK_SIZE, grid_w - 1))
+        grid[food_row, food_col] = 0
+
+        # # Head grid coordinates
+        head_row = int(min(head.y // cfg.BLOCK_SIZE, grid_h - 1))
+        head_col = int(min(head.x // cfg.BLOCK_SIZE, grid_w - 1))
+
+        # Compute distances + free-space depending on current direction
+        if dir_r:
+            # dist_straight = self._distance_until_collision(game, head, step_r)
+            # dist_left     = self._distance_until_collision(game, head, step_u)
+            # dist_right    = self._distance_until_collision(game, head, step_d)
+
+            free_straight = self._fast_flood_fill(grid, (head_row, head_col + 1))
+            free_left     = self._fast_flood_fill(grid, (head_row - 1, head_col))
+            free_right    = self._fast_flood_fill(grid, (head_row + 1, head_col))
+
+        elif dir_l:
+            # dist_straight = self._distance_until_collision(game, head, step_l)
+            # dist_left     = self._distance_until_collision(game, head, step_d)
+            # dist_right    = self._distance_until_collision(game, head, step_u)
+
+            free_straight = self._fast_flood_fill(grid, (head_row, head_col - 1))
+            free_left     = self._fast_flood_fill(grid, (head_row + 1, head_col))
+            free_right    = self._fast_flood_fill(grid, (head_row - 1, head_col))
+
+        elif dir_u:
+            # dist_straight = self._distance_until_collision(game, head, step_u)
+            # dist_left     = self._distance_until_collision(game, head, step_l)
+            # dist_right    = self._distance_until_collision(game, head, step_r)
+
+            free_straight = self._fast_flood_fill(grid, (head_row - 1, head_col))
+            free_left     = self._fast_flood_fill(grid, (head_row, head_col - 1))
+            free_right    = self._fast_flood_fill(grid, (head_row, head_col + 1))
+
+        elif dir_d:
+            # dist_straight = self._distance_until_collision(game, head, step_d)
+            # dist_left     = self._distance_until_collision(game, head, step_r)
+            # dist_right    = self._distance_until_collision(game, head, step_l)
+
+            free_straight = self._fast_flood_fill(grid, (head_row + 1, head_col))
+            free_left     = self._fast_flood_fill(grid, (head_row, head_col + 1))
+            free_right    = self._fast_flood_fill(grid, (head_row, head_col - 1))
+
+        # Normalize free-space
+        free_straight /= (grid_h * grid_w)
+        free_left     /= (grid_h * grid_w)
+        free_right    /= (grid_h * grid_w)
+
+        # ---------------- BUILD STATE VECTOR ----------------
         state = [
             # Danger straight
-            (dir_r and game.is_collision(point_r)) or 
-            (dir_l and game.is_collision(point_l)) or 
-            (dir_u and game.is_collision(point_u)) or 
+            (dir_r and game.is_collision(point_r)) or
+            (dir_l and game.is_collision(point_l)) or
+            (dir_u and game.is_collision(point_u)) or
             (dir_d and game.is_collision(point_d)),
 
             # Danger right
-            (dir_u and game.is_collision(point_r)) or 
-            (dir_d and game.is_collision(point_l)) or 
-            (dir_l and game.is_collision(point_u)) or 
+            (dir_u and game.is_collision(point_r)) or
+            (dir_d and game.is_collision(point_l)) or
+            (dir_l and game.is_collision(point_u)) or
             (dir_r and game.is_collision(point_d)),
 
             # Danger left
-            (dir_d and game.is_collision(point_r)) or 
-            (dir_u and game.is_collision(point_l)) or 
-            (dir_r and game.is_collision(point_u)) or 
+            (dir_d and game.is_collision(point_r)) or
+            (dir_u and game.is_collision(point_l)) or
+            (dir_r and game.is_collision(point_u)) or
             (dir_l and game.is_collision(point_d)),
-            
-            # Move Move
+
+            # Move direction
             dir_l,
             dir_r,
             dir_u,
             dir_d,
-            
-            # Food location 
-            game.food.x < game.head.x,  # food is in left
-            game.food.x > game.head.x,  # food is in right
-            game.food.y < game.head.y,  # food is in up
-            game.food.y > game.head.y  # food is in down
+
+            # Food location
+            game.food.x < game.head.x,
+            game.food.x > game.head.x,
+            game.food.y < game.head.y,
+            game.food.y > game.head.y,
+
+            # # Distance-to-obstacle features
+            # dist_straight,
+            # dist_left,
+            # dist_right,
+
+            # Free-space features
+            free_straight,
+            free_left,
+            free_right
         ]
 
-        return np.array(state, dtype=int)
+        return np.array(state, dtype=float)
+
+    # def get_state(self, game):
+    #     head = game.snake[0]
+    #     point_l = Point(head.x - 20, head.y)
+    #     point_r = Point(head.x + 20, head.y)
+    #     point_u = Point(head.x, head.y - 20)
+    #     point_d = Point(head.x, head.y + 20)
+        
+    #     dir_l = game.move == Move.LEFT
+    #     dir_r = game.move == Move.RIGHT
+    #     dir_u = game.move == Move.UP
+    #     dir_d = game.move == Move.DOWN
+
+    #     state = [
+    #         # Danger straight
+    #         (dir_r and game.is_collision(point_r)) or 
+    #         (dir_l and game.is_collision(point_l)) or 
+    #         (dir_u and game.is_collision(point_u)) or 
+    #         (dir_d and game.is_collision(point_d)),
+
+    #         # Danger right
+    #         (dir_u and game.is_collision(point_r)) or 
+    #         (dir_d and game.is_collision(point_l)) or 
+    #         (dir_l and game.is_collision(point_u)) or 
+    #         (dir_r and game.is_collision(point_d)),
+
+    #         # Danger left
+    #         (dir_d and game.is_collision(point_r)) or 
+    #         (dir_u and game.is_collision(point_l)) or 
+    #         (dir_r and game.is_collision(point_u)) or 
+    #         (dir_l and game.is_collision(point_d)),
+            
+    #         # Move Move
+    #         dir_l,
+    #         dir_r,
+    #         dir_u,
+    #         dir_d,
+            
+    #         # Food location 
+    #         game.food.x < game.head.x,  # food is in left
+    #         game.food.x > game.head.x,  # food is in right
+    #         game.food.y < game.head.y,  # food is in up
+    #         game.food.y > game.head.y  # food is in down
+    #     ]
+
+    #     return np.array(state, dtype=int)
 
     def remember(self, state, action, reward, next_state, done):
         self.memory.append((state, action, reward, next_state, done)) # popleft if MAX_MEMORY is reached
@@ -178,6 +350,94 @@ class Agent:
         move[int(torch.argmax(prediction).item())] = 1
         
         return move
+    
+    def get_heuristic_action(self, game):
+        """
+        Simple heuristic:
+        - Prefer moves that get closer to food.
+        - Only consider moves that do not cause an immediate collision.
+        - If no safe move improves distance, pick any safe move.
+        - If no safe move exists, fall back to straight.
+        """
+        import math
+        from src.game import Move, Point
+
+        # Helper: simulate next head position for an action
+        def simulate_move(current_move, head, action):
+            # [straight, right, left]
+            clock_wise = [Move.RIGHT, Move.DOWN, Move.LEFT, Move.UP]
+            idx = clock_wise.index(current_move)
+
+            if np.array_equal(action, [1, 0, 0]):
+                new_dir = clock_wise[idx]
+            elif np.array_equal(action, [0, 1, 0]):
+                new_dir = clock_wise[(idx + 1) % 4]
+            else:  # [0, 0, 1]
+                new_dir = clock_wise[(idx - 1) % 4]
+
+            x, y = head.x, head.y
+            if new_dir == Move.RIGHT:
+                x += cfg.BLOCK_SIZE
+            elif new_dir == Move.LEFT:
+                x -= cfg.BLOCK_SIZE
+            elif new_dir == Move.DOWN:
+                y += cfg.BLOCK_SIZE
+            elif new_dir == Move.UP:
+                y -= cfg.BLOCK_SIZE
+
+            return new_dir, Point(x, y)
+
+        head = game.head
+        food = game.food
+
+        possible_actions = [
+            np.array([1, 0, 0]),  # straight
+            np.array([0, 1, 0]),  # right
+            np.array([0, 0, 1])   # left
+        ]
+
+        safe_actions = []
+        best_action = None
+        best_dist = float("inf")
+
+        # Current distance to food
+        def dist(p):
+            return math.sqrt((p.x - food.x) ** 2 + (p.y - food.y) ** 2)
+
+        for action in possible_actions:
+            new_dir, new_head = simulate_move(game.move, head, action)
+
+            # Check immediate collision using game.is_collision
+            if game.is_collision(new_head):
+                continue  # unsafe move
+
+            safe_actions.append(action)
+
+            d = dist(new_head)
+            if d < best_dist:
+                best_dist = d
+                best_action = action
+
+        # If we found a safe action that improves distance, use it
+        def action_to_index(action, possible_actions):
+            return next(i for i, a in enumerate(possible_actions) if np.array_equal(a, action))
+
+        if best_action is not None:
+            final_move = [0, 0, 0]
+            idx = action_to_index(best_action, possible_actions)
+            final_move[idx] = 1
+            return final_move
+
+        # Otherwise, pick any safe move
+        if safe_actions:
+            chosen = random.choice(safe_actions)
+            final_move = [0, 0, 0]
+            idx = possible_actions.index(chosen)
+            final_move[idx] = 1
+            return final_move
+
+        # If no safe move exists, go straight (we’re doomed anyway)
+        return [1, 0, 0]
 
     
 
