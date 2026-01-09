@@ -108,14 +108,22 @@ class SnakeGameAI:
 
     def _update_ui(self):
         self.display.fill(cfg.BLACK)
+        n_snake_blocks = len(self.snake)
 
-        for pt in self.snake:
+        for idx, pt in enumerate(self.snake):
+            ratio = idx / n_snake_blocks
+            if ratio < 1/3:
+                colour = cfg.BLUE2
+            elif ratio < 2/3:
+                colour = cfg.WHITE
+            else:
+                colour = cfg.RED
             pygame.draw.rect(
-                self.display, cfg.BLUE1, pygame.Rect(pt.x, pt.y, cfg.BLOCK_SIZE, cfg.BLOCK_SIZE)
+                self.display, colour, pygame.Rect(pt.x, pt.y, cfg.BLOCK_SIZE, cfg.BLOCK_SIZE)
             )
-            pygame.draw.rect(
-                self.display, cfg.BLUE2, pygame.Rect(pt.x+4, pt.y+4, 12, 12)
-            )
+            # pygame.draw.rect(
+            #     self.display, cfg.BLUE2, pygame.Rect(pt.x+4, pt.y+4, 12, 12)
+            # )
 
         pygame.draw.rect(
             self.display, cfg.RED, pygame.Rect(self.food.x, self.food.y, cfg.BLOCK_SIZE, cfg.BLOCK_SIZE)
