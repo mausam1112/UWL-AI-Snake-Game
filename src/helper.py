@@ -29,17 +29,17 @@ def plot(*, scores=[], mean_scores=[], loss=[], model_folder_path, filename="plo
     plt.xlim(xmin=0)
     plt.legend()
 
+    if loss:
+        plt.subplot(2, 1, 2)
+        plt.plot(range(1, len(loss)+1), loss, label="Loss")
+        plt.xlabel('Number of Games')
+        plt.ylabel("Loss")
+        plt.title('Training Loss...')
 
-    plt.subplot(2, 1, 2)
-    plt.plot(range(1, len(loss)+1), loss, label="Loss")
-    plt.xlabel('Number of Games')
-    plt.ylabel("Loss")
-    plt.title('Training Loss...')
+        plt.ylim(ymin=0)
+        plt.xlim(xmin=0)
 
-    plt.ylim(ymin=0)
-    plt.xlim(xmin=0)
-
-    plt.legend()
+        plt.legend()
     plt.tight_layout()
     plt.show(block=False)
     plt.pause(.1)
