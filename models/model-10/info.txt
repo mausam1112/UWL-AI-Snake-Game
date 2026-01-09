@@ -1,0 +1,9 @@
+MAX_MEMORY = 100_000
+BATCH_SIZE = 1000
+LR = 0.001
+
+
+3 layers [ip, 256, op]
+leaky relu activation
+
+model 2 checkpoint doesn't have all information saved

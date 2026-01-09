@@ -1,0 +1,15 @@
+MAX_MEMORY = 100_000
+BATCH_SIZE = 5000
+LR = 0.001
+
+
+layers 
+[ip=14, 128 256] + [ip=14 , 256] > [256, op]
+
+reset like skip connection
+leaky relu activation
+
+model 2 checkpoint doesn't have all information saved
+
+---
+adding 3 features free space to 3 directions.

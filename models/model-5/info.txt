@@ -1,0 +1,5 @@
+MAX_MEMORY = 100_000
+BATCH_SIZE = 1_000
+LR = 0.001
+
+layers [ip, 64, 128, op]
